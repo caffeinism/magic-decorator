@@ -64,4 +64,14 @@ def func():
     ...
 ```
 
+Added a decorator for langchain. In this case, it becomes LLMChain.
+```python
+llm = SomeLLMModels()
+@magic_langchain(llm=llm)
+def mychain():
+    ...
+
+mychain.predict_and_parse()
+```
+
 There is no preprocessing, no postprocessing, and no error handling in this module. It's just code to do a simple thing, so there are no prompts to encourage better answers.
