@@ -4,8 +4,8 @@ import logging
 import textwrap
 from functools import wraps
 
-import sick_json
 import openai
+import sick_json
 from pydantic import BaseModel, Field
 
 
@@ -19,10 +19,7 @@ JSON_PROMPT = "You should always answer according to the JSON schema below: "
 
 
 def get_json_format_prompt(pydantic_model, default_prompt=JSON_PROMPT):
-    return (
-        f"{default_prompt}\n"
-        f"{pydantic_model.schema_json()}"
-    )
+    return f"{default_prompt}\n" f"{pydantic_model.schema_json()}"
 
 
 def get_return_model(return_annotation):
@@ -46,8 +43,10 @@ SYSTEM_PROMPT = (
     "```\n"
     "{function_code}\n"
     "```\n\n"
-    "{json_prompt}"
+    "{format_instruction}"
 )
+
+
 def magic(return_all=False, **openai_kwargs):
     def wrapper(func):
         @wraps(func)
@@ -69,7 +68,7 @@ def magic(return_all=False, **openai_kwargs):
                     "role": "system",
                     "content": SYSTEM_PROMPT.format(
                         function_code=function_code,
-                        json_prompt=json_prompt,
+                        format_instruction=json_prompt,
                     ),
                 },
                 {
@@ -77,8 +76,7 @@ def magic(return_all=False, **openai_kwargs):
                     "content": arguments_string,
                 },
             ]
-            
-            
+
             logging.debug("System Message: ")
             logging.debug(messages[0]["content"])
             logging.debug("User Message: ")
@@ -88,7 +86,7 @@ def magic(return_all=False, **openai_kwargs):
                 messages=messages,
                 **openai_kwargs,
             )
-            
+
             logging.debug("Bot Message: ")
             logging.debug(response.choices[0].message.content)
 
@@ -96,7 +94,7 @@ def magic(return_all=False, **openai_kwargs):
                 response.choices[0].message.content,
                 pydantic_model=return_model,
             )
-                
+
             if return_all:
                 return bot_says
             else:
@@ -106,36 +104,49 @@ def magic(return_all=False, **openai_kwargs):
 
     return wrapper
 
+
 try:
-    from langchain.chains import LLMChain
-    from langchain.chat_models import AzureChatOpenAI
     from langchain.base_language import BaseLanguageModel
+    from langchain.chains import LLMChain
+    from langchain.output_parsers.pydantic import PydanticOutputParser
+    from langchain.prompts import (
+        ChatPromptTemplate,
+        HumanMessagePromptTemplate,
+        SystemMessagePromptTemplate,
+    )
     from langchain.schema import BaseOutputParser
-    from langchain.prompts import SystemMessagePromptTemplate, HumanMessagePromptTemplate, ChatPromptTemplate
+
+    class SickJsonOutputParser(PydanticOutputParser):
+        return_all: bool = False
+
+        def parse(self, text: str) -> dict:
+            parsed = sick_json.parse(
+                text,
+                pydantic_model=self.pydantic_object,
+            )
+            return parsed if self.return_all else parsed["return"]
 
     def magic_langchain(llm: BaseLanguageModel, return_all=False):
         def wrapper(func):
             function_code = _function_stringfy(func)
             return_annotation = inspect.signature(func).return_annotation
             return_model = get_return_model(return_annotation)
-            json_prompt = get_json_format_prompt(return_model)
+            output_parser = SickJsonOutputParser(
+                pydantic_object=return_model, return_all=return_all
+            )
 
-            system_prompt = SYSTEM_PROMPT.format(
-                function_code=function_code,
-                json_prompt=json_prompt,
-            ).replace("{", "{{").replace("}", "}}")
+            system_prompt = (
+                SYSTEM_PROMPT.format(
+                    function_code=function_code,
+                    format_instruction=output_parser.get_format_instructions(),
+                )
+                .replace("{", "{{")
+                .replace("}", "}}")
+            )
 
             argument_list = list(inspect.signature(func).parameters.keys())
             arguments = ", ".join(["{" + key + "}" for key in argument_list])
             user_prompt = f"{func.__name__}({arguments})"
-
-            class SickJSONParser(BaseOutputParser):
-                def parse(self, text: str):
-                    parsed = sick_json.parse(
-                        text,
-                        pydantic_model=return_model,
-                    )
-                    return parsed if return_all else parsed["return"]
 
             template = ChatPromptTemplate(
                 input_variables=argument_list,
@@ -143,15 +154,18 @@ try:
                     SystemMessagePromptTemplate.from_template(system_prompt),
                     HumanMessagePromptTemplate.from_template(user_prompt),
                 ],
-                output_parser=SickJSONParser(),
             )
 
             chain = LLMChain(
                 llm=llm,
                 prompt=template,
+                output_parser=output_parser,
+                return_final_only=True,
             )
 
             return chain
+
         return wrapper
+
 except Exception as e:
     pass
