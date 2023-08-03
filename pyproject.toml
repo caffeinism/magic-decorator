@@ -4,14 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "magic-decorator"
-version = "0.0.7"
+version = "0.0.8"
 authors = [
     {name="Kim Minjong", email="make.dirty.code@gmail.com"},
 ]
 description = "A magic function decorator using OpenAI ChatCompletion"
 readme = "README.md"
 requires-python = ">=3.7.1"
-dependencies = ["openai>0.27", "sick-json"]
+dependencies = ["openai>0.27", "sick-json", "langchain"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
