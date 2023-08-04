@@ -96,12 +96,13 @@ def _get_func_chain(llm: BaseLanguageModel, func: Callable, return_all: bool):
 
 def magic(llm: BaseLanguageModel, return_all=False):
     def decorator(func: Callable):
+        chain = _get_func_chain(llm=llm, func=func, return_all=return_all)
+        signature = inspect.signature(func)
+
         @wraps(func)
         def wrapper(*args, **kwargs):
-            arguments = inspect.signature(func).bind(*args, **kwargs).arguments
-            return _get_func_chain(llm=llm, func=func, return_all=return_all).predict(
-                **arguments
-            )
+            arguments = signature.bind(*args, **kwargs).arguments
+            return chain.predict(**arguments)
 
         return wrapper
 
