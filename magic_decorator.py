@@ -9,12 +9,9 @@ import sick_json
 from langchain.base_language import BaseLanguageModel
 from langchain.chains import LLMChain
 from langchain.output_parsers.pydantic import PydanticOutputParser
-from langchain.prompts import (
-    ChatPromptTemplate,
-    HumanMessagePromptTemplate,
-    SystemMessagePromptTemplate,
-)
-from langchain.schema import BaseOutputParser, SystemMessage
+from langchain.prompts import ChatPromptTemplate
+from langchain.prompts.chat import BaseStringMessagePromptTemplate
+from langchain.schema import BaseOutputParser, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
 SYSTEM_PROMPT = (
@@ -59,6 +56,12 @@ class _SickJsonOutputParser(PydanticOutputParser):
         return parsed if self.return_all else parsed["return"]
 
 
+class ReprHumanMessagePromptTemplate(BaseStringMessagePromptTemplate):
+    def format(self, **kwargs):
+        text = self.prompt.format(**{key: repr(value) for key, value in kwargs.items()})
+        return HumanMessage(content=text, additional_kwargs=self.additional_kwargs)
+
+
 def _get_func_chain(llm: BaseLanguageModel, func: Callable, return_all: bool):
     function_code = _function_stringfy(func)
     return_annotation = inspect.signature(func).return_annotation
@@ -68,7 +71,7 @@ def _get_func_chain(llm: BaseLanguageModel, func: Callable, return_all: bool):
     )
 
     argument_list = list(inspect.signature(func).parameters.keys())
-    arguments = ", ".join(["{" + key + "}" for key in argument_list])
+    arguments = ", ".join([f"{key}={{{key}}}" for key in argument_list])
     user_prompt = f"{func.__name__}({arguments})"
 
     template = ChatPromptTemplate(
@@ -80,7 +83,7 @@ def _get_func_chain(llm: BaseLanguageModel, func: Callable, return_all: bool):
                     format_instruction=output_parser.get_format_instructions(),
                 )
             ),
-            HumanMessagePromptTemplate.from_template(user_prompt),
+            ReprHumanMessagePromptTemplate.from_template(user_prompt),
         ],
     )
 
