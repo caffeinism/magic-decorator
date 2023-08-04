@@ -1,14 +1,17 @@
-# Simple demo function using OpenAI's ChatComplete
+# Simple demo function using LangChain
 
 The only function implemented in this module is magic.
 
-`magic` works as a decorator. It simply sends the function's signature and docstring to the GPT and expects to get a result.
+`magic` works as a decorator. It simply sends the function's signature and docstring to the LLM and expects to get a result.
 
 It can be installed with `pip install magic-decorator` and used with `from magic_decorator import magic`.
 
 ```python
+from langchain import SomeLLMModels
+llm = SomeLLMModels()
+
 from magic_decorator import magic
-@magic(model="gpt-4")
+@magic(llm=llm)
 def transpose(matrix: list[list[int]]) -> list[list[int]]:
     """
     This function finds the transpose of the given matrix.
@@ -21,7 +24,7 @@ transpose([[1,2,3],[4,5,6]])
 
 ```python
 from magic_decorator import magic
-@magic(model="gpt-4")
+@magic(llm=llm)
 def add(a: float, b: float) -> float:
     """
     This function adds a and b.
@@ -34,7 +37,7 @@ add(1., 10.)
 
 ```python
 from magic_decorator import magic
-@magic(model="gpt-4")
+@magic(llm=llm)
 def friend(message: str) -> str:
     """
     This function responds like a friend.
@@ -43,25 +46,6 @@ friend("Hi, how are you today?")
 ```
 ```
 'Hey! I am doing great, thank you. How about you?'
-```
-
-Since the magic decorator works with OpenAI's API, you need to put the API_KEY in an environment variable or directly in the decorator.
-```python
-import os
-from magic_decorator import magic
-
-os.environ["OPENAI_API_KEY"] = ...
-# or
-@magic(model="gpt-4", api_key=...)
-def func():
-    ...
-```
-Alternatively, you can pre-declare decorators that will be used repeatedly.
-```python
-cold_magic = magic(model="gpt-4", temperature=0)
-@cold_magic
-def func():
-    ...
 ```
 
 Added a decorator for langchain. In this case, it becomes LLMChain.
