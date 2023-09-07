@@ -29,18 +29,31 @@ def _function_stringfy(func):
     return f"def {func.__name__}{str(inspect.signature(func))}:\n" f"{docstring}"
 
 
-def _get_return_model(return_annotation):
-    class Answer(BaseModel):
-        thought: str = Field(
-            description="Write down your thoughts or reasoning step by step."
-        )
-        return_: return_annotation = Field(
-            description=(
-                "The return value of the function."
-                " This value must always be in valid JSON format."
-            ),
-            alias="return",
-        )
+def _get_return_model(return_annotation, with_thought: bool):
+    if with_thought:
+
+        class Answer(BaseModel):
+            thought: str = Field(
+                description="Write down your thoughts or reasoning step by step."
+            )
+            return_: return_annotation = Field(
+                description=(
+                    "The return value of the function."
+                    " This value must always be in valid JSON format."
+                ),
+                alias="return",
+            )
+
+    else:
+
+        class Answer(BaseModel):
+            return_: return_annotation = Field(
+                description=(
+                    "The return value of the function."
+                    " This value must always be in valid JSON format."
+                ),
+                alias="return",
+            )
 
     return Answer
 
@@ -62,10 +75,12 @@ class ReprHumanMessagePromptTemplate(BaseStringMessagePromptTemplate):
         return HumanMessage(content=text, additional_kwargs=self.additional_kwargs)
 
 
-def _get_func_chain(llm: BaseLanguageModel, func: Callable, return_all: bool):
+def _get_func_chain(
+    llm: BaseLanguageModel, func: Callable, return_all: bool, with_thought: bool
+):
     function_code = _function_stringfy(func)
     return_annotation = inspect.signature(func).return_annotation
-    return_model = _get_return_model(return_annotation)
+    return_model = _get_return_model(return_annotation, with_thought)
     output_parser = _SickJsonOutputParser(
         pydantic_object=return_model, return_all=return_all
     )
@@ -97,9 +112,11 @@ def _get_func_chain(llm: BaseLanguageModel, func: Callable, return_all: bool):
     return chain
 
 
-def magic(llm: BaseLanguageModel, return_all=False):
+def magic(llm: BaseLanguageModel, return_all=False, with_thought=False):
     def decorator(func: Callable):
-        chain = _get_func_chain(llm=llm, func=func, return_all=return_all)
+        chain = _get_func_chain(
+            llm=llm, func=func, return_all=return_all, with_thought=with_thought
+        )
         signature = inspect.signature(func)
 
         @wraps(func)
@@ -112,8 +129,10 @@ def magic(llm: BaseLanguageModel, return_all=False):
     return decorator
 
 
-def magic_langchain(llm: BaseLanguageModel, return_all=False):
+def magic_langchain(llm: BaseLanguageModel, return_all=False, with_thought=False):
     def decorator(func: Callable):
-        return _get_func_chain(llm=llm, func=func, return_all=return_all)
+        return _get_func_chain(
+            llm=llm, func=func, return_all=return_all, with_thought=with_thought
+        )
 
     return decorator
